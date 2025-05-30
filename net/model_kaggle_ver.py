@@ -8,7 +8,8 @@ class SwinRegression(nn.Module):
         # 載入 Swin-Tiny 預訓練模型
         self.swin = timm.create_model('swin_tiny_patch4_window7_224.ms_in22k', pretrained=True)
         for param in self.swin.parameters():
-            param.requires_grad = False  # 凍結預訓練參數（可選解凍）
+            param.requires_grad = False
+            
         self.regressor = nn.Sequential(
             nn.Linear(768, 512),  # Swin-Tiny 輸出 768 維
             nn.ReLU(),

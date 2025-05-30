@@ -14,6 +14,7 @@ from util.schedulers import LinearWarmupCosineAnnealingLR
 from net.model_kaggle_ver import SwinRegression
 
 
+torch.set_float32_matmul_precision('medium')  
 
 # 定義 Lightning 模組
 class SeaLionCountingModel(pl.LightningModule):
@@ -52,7 +53,6 @@ class SeaLionCountingModel(pl.LightningModule):
             warmup_epochs=10,
             max_epochs=self.trainer.max_epochs,
             warmup_start_lr=0.0,
-            min_lr=1e-6
         )
         return {
             "optimizer": optimizer,
@@ -64,7 +64,7 @@ class SeaLionCountingModel(pl.LightningModule):
 
 # 定義數據模組
 class SeaLionDataModule(pl.LightningDataModule):
-    def __init__(self, train_files, train_dir, dotted_dir, batch_size=8, patch_size = 224, num_workers=0):
+    def __init__(self, train_files, train_dir, dotted_dir, batch_size=8, patch_size = 224, num_workers=0, scale_factor=0.4):
         super().__init__()
         self.train_files = train_files
         self.train_dir = train_dir
@@ -72,31 +72,26 @@ class SeaLionDataModule(pl.LightningDataModule):
         self.batch_size = batch_size
         self.patch_size = patch_size
         self.num_workers = num_workers  
-        
+        self.scale_factor = scale_factor
+        self.transform = transforms.Compose([
+            transforms.ToPILImage(),
+            transforms.RandomHorizontalFlip(),
+            transforms.RandomVerticalFlip(),
+            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+            transforms.ToTensor(),
+        ])
     def setup(self, stage=None):
         if stage in (None, "fit"):
             # 創建完整的數據集
             full_dataset = SeaLionPatchDataset(
-                self.train_files, self.train_dir, self.dotted_dir, self.patch_size,
-                transform=None  # 將在後續根據訓練/驗證分別應用 transform
+                self.train_files, self.train_dir, self.dotted_dir, self.patch_size, self.scale_factor,
+                self.transform  
             )
             # 按 80% 訓練，20% 驗證分割
             train_size = int(0.8 * len(full_dataset))
             val_size = len(full_dataset) - train_size
             train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-
-            # 應用 transform
-            train_transform = transforms.Compose([
-                transforms.Resize((224, 224)),
-                transforms.RandomHorizontalFlip(),
-                transforms.RandomVerticalFlip(),
-                transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2)
-            ])
-            val_transform = transforms.Compose([transforms.Resize((224, 224))])
-
-            # 為每個數據集設置 transform
-            train_dataset.dataset.transform = train_transform
-            val_dataset.dataset.transform = val_transform
+            # 應用 transformm
 
             self.train_dataset = train_dataset
             self.val_dataset = val_dataset
@@ -115,21 +110,24 @@ if __name__ == "__main__":
     parser.add_argument("--save_model", type=str, default="output", help="Path to save the trained model")
     parser.add_argument("--batch_size", type=int, default=2, help="Batch size for training")
     parser.add_argument("--num_workers", type=int, default=0, help="Number of workers for data loading")
-    parser.add_argument("--patch_size", type=int, default=224, help="Size of the patches to extract from images")
+    parser.add_argument("--patch_size", type=int, default=446, help="Size of the patches to extract from images")
+    parser.add_argument("--scale_factor", type=float, default=0.4, help="Scale factor for image patches")
 
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
     args = parser.parse_args()
 
     # 準備數據
-    train_files = [f for f in os.listdir(args.train_dir) if f.endswith('.png')]
+    print("Preparing dataset...")
+    train_files = [f for f in os.listdir(args.train_dir) if f.endswith('.png') or f.endswith('.jpg')]
     data_module = SeaLionDataModule(train_files, args.train_dir, args.dotted_dir,
-                                    batch_size=args.batch_size, patch_size=args.patch_size, num_workers=args.num_workers)
-
+                                    batch_size=args.batch_size, patch_size=args.patch_size, num_workers=args.num_workers, scale_factor=args.scale_factor)
+    
+    print("Initializing model...")
     # 初始化模型
     model = SeaLionCountingModel(num_classes=5, learning_rate=args.lr, batch_size=args.batch_size)
 
-
+    print("Setting up training...")
     # 設置 Logger
     logger = TensorBoardLogger("lightning_logs", name="sea_lion_counting")
     checkpoint_callback = ModelCheckpoint(
@@ -151,7 +149,8 @@ if __name__ == "__main__":
         callbacks=[checkpoint_callback],
         log_every_n_steps=10
     )
-    trainer.fit(model, datamodule=data_module)
 
+    print("Starting training...")
+    trainer.fit(model, datamodule=data_module)
     # 儲存模型
-    torch.save(model.state_dict(), os.path.join(args.save_model, "sea_lion_counting_model.pth"))
+    # torch.save(model.state_dict(), os.path.join(args.save_model, "sea_lion_counting_model.pth"))
