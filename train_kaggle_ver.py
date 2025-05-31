@@ -79,6 +79,7 @@ class SeaLionDataModule(pl.LightningDataModule):
             transforms.RandomVerticalFlip(),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
             transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
     def setup(self, stage=None):
         if stage in (None, "fit"):
@@ -107,13 +108,13 @@ if __name__ == "__main__":
     parser.add_argument("--train_dir", type=str, default="Train", help="Path to train directory")
     parser.add_argument("--dotted_dir", type=str, default="TrainDotted", help="Path to dotted directory")
     parser.add_argument("--save_model", type=str, default="output", help="Path to save the trained model")
-    parser.add_argument("--batch_size", type=int, default=2, help="Batch size for training")
+    parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
     parser.add_argument("--num_workers", type=int, default=0, help="Number of workers for data loading")
     parser.add_argument("--patch_size", type=int, default=224, help="Size of the patches to extract from images")
-    parser.add_argument("--scale_factor", type=float, default=0.4, help="Scale factor for image patches")
+    parser.add_argument("--scale_factor", type=float, default=1, help="Scale factor for image patches")
 
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate")
-    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs")
+    parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
     args = parser.parse_args()
 
     # 準備數據
@@ -134,9 +135,9 @@ if __name__ == "__main__":
         filename="swin_pytorch-{epoch:02d}-{val_rmse:.4f}",
         monitor="val_rmse",
         mode="min",
-        save_top_k=-1,
+        save_top_k=5,
         save_last=True,
-        every_n_epochs=1
+        every_n_epochs=10
     )
 
     # 訓練
