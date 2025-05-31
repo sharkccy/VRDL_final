@@ -91,7 +91,6 @@ class SeaLionDataModule(pl.LightningDataModule):
             train_size = int(0.8 * len(full_dataset))
             val_size = len(full_dataset) - train_size
             train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-            # 應用 transformm
 
             self.train_dataset = train_dataset
             self.val_dataset = val_dataset
@@ -110,11 +109,11 @@ if __name__ == "__main__":
     parser.add_argument("--save_model", type=str, default="output", help="Path to save the trained model")
     parser.add_argument("--batch_size", type=int, default=2, help="Batch size for training")
     parser.add_argument("--num_workers", type=int, default=0, help="Number of workers for data loading")
-    parser.add_argument("--patch_size", type=int, default=446, help="Size of the patches to extract from images")
+    parser.add_argument("--patch_size", type=int, default=224, help="Size of the patches to extract from images")
     parser.add_argument("--scale_factor", type=float, default=0.4, help="Scale factor for image patches")
 
     parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate")
-    parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
+    parser.add_argument("--epochs", type=int, default=1, help="Number of epochs")
     args = parser.parse_args()
 
     # 準備數據
