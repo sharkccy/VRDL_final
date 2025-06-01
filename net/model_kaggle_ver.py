@@ -21,7 +21,8 @@ class SwinRegression(nn.Module):
             nn.Linear(768, 512),  # 從 768 維到 512 維
             nn.ReLU(),
             nn.Dropout(0.5),
-            nn.Linear(512, num_classes)  # 輸出 5 個值
+            nn.Linear(512, num_classes),  # 輸出 5 個值
+            nn.ReLU()  # no negative values in regression
         )
 
     def forward(self, x):

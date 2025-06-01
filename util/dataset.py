@@ -51,8 +51,10 @@ class SeaLionPatchDataset:
             # 在縮放後的圖像上提取 patch
             for i in range(0, scale_h - self.patch_size + 1, self.patch_size // 2):
                 for j in range(0, scale_w - self.patch_size + 1, self.patch_size // 2):
-                    patch = img1_scaled[i:i+self.patch_size, j:j+self.patch_size]
-                    if patch.shape[0] != self.patch_size or patch.shape[1] != self.patch_size:
+                    gt_patch = img1_scaled[i:i+self.patch_size, j:j+self.patch_size]
+                    train_patch = img2_scaled[i:i+self.patch_size, j:j+self.patch_size]
+                    if gt_patch.shape[0] != self.patch_size or gt_patch.shape[1] != self.patch_size or \
+                       train_patch.shape[0] != self.patch_size or train_patch.shape[1] != self.patch_size:
                         continue
                     counts = np.zeros(5)
                     for blob in blobs_scaled:
@@ -69,13 +71,13 @@ class SeaLionPatchDataset:
                                 counts[3] += 1
                             elif 60 < r < 120 and b < 50 and g < 75:
                                 counts[2] += 1
-                    if np.sum(counts) == 0:
+                    if np.sum(counts) < 3:
                         np.random.seed(int(time.time()) % 1000)  # Set seed for reproducibility
-                        if np.random.rand() < 0.5:
+                        if np.random.rand() < 0.8:
                             print(f"Skipping {filename} at patch ({i}, {j}): no counts found")
                             continue
                     print(f"Processing {filename} at patch ({i}, {j}): counts = {counts}")
-                    self.patches.append((patch, i, j))
+                    self.patches.append((train_patch, i, j))
                     self.labels.append(counts)
 
     def __len__(self):

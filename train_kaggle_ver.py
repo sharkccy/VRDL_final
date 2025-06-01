@@ -25,10 +25,16 @@ class SeaLionCountingModel(pl.LightningModule):
         self.criterion = nn.MSELoss()
         self.train_rmse = MeanSquaredError(squared=False)
         self.val_rmse = MeanSquaredError(squared=False)
-
+        # 用於累計訓練集計數
+        self.train_ground_truths = []
+        self.train_predictions = []
+        # 用於累計驗證集計數
+        self.val_ground_truths = []
+        self.val_predictions = []
+        
     def forward(self, x):
         return self.model(x)
-
+    
     def training_step(self, batch, batch_idx):
         images, labels = batch
         outputs = self(images)
@@ -36,6 +42,9 @@ class SeaLionCountingModel(pl.LightningModule):
         self.train_rmse(outputs, labels)
         self.log('train_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log('train_rmse', self.train_rmse, on_step=True, on_epoch=True, prog_bar=True)
+        # 收集訓練集計數
+        self.train_ground_truths.append(labels.detach().cpu())
+        self.train_predictions.append(outputs.detach().cpu())
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -45,6 +54,33 @@ class SeaLionCountingModel(pl.LightningModule):
         self.val_rmse(outputs, labels)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True)
         self.log('val_rmse', self.val_rmse, on_step=True, on_epoch=True, prog_bar=True)
+        # 收集驗證集計數
+        self.val_ground_truths.append(labels.detach().cpu())
+        self.val_predictions.append(outputs.detach().cpu())
+
+    def on_train_epoch_end(self):
+        # 聚合訓練集計數
+        ground_truths = torch.cat(self.train_ground_truths, dim=0)  # [N, 5]
+        predictions = torch.cat(self.train_predictions, dim=0)  # [N, 5]
+        gt_sum = ground_truths.sum(dim=0).round().int().numpy()  # [5]
+        pred_sum = predictions.sum(dim=0).round().int().numpy()  # [5]
+        print(f"\nTraining set --")
+        print(f"    ground truth:  {gt_sum}")
+        print(f"  evaluate count:  {pred_sum}")
+        self.train_ground_truths = []
+        self.train_predictions = []
+
+    def on_validation_epoch_end(self):
+        # 聚合驗證集計數
+        ground_truths = torch.cat(self.val_ground_truths, dim=0)  # [M, 5]
+        predictions = torch.cat(self.val_predictions, dim=0)  # [M, 5]
+        gt_sum = ground_truths.sum(dim=0).round().int().numpy()  # [5]
+        pred_sum = predictions.sum(dim=0).round().int().numpy()  # [5]
+        print(f"\nValidation set --")
+        print(f"    ground truth:  {gt_sum}")
+        print(f"  evaluate count:  {pred_sum}")
+        self.val_ground_truths = []
+        self.val_predictions = []
 
     def configure_optimizers(self):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.hparams.learning_rate)
@@ -73,6 +109,7 @@ class SeaLionDataModule(pl.LightningDataModule):
         self.patch_size = patch_size
         self.num_workers = num_workers  
         self.scale_factor = scale_factor
+        
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
             transforms.RandomHorizontalFlip(),
