@@ -8,21 +8,24 @@ from pytorch_lightning.callbacks import ModelCheckpoint
 from torch.utils.data import DataLoader, random_split
 import torchvision.transforms as transforms
 from torchmetrics import MeanSquaredError
+import pandas as pd
 
 from util.dataset import SeaLionPatchDataset
 from util.schedulers import LinearWarmupCosineAnnealingLR
+from util.loss import FocalRMSELoss
 from net.model_kaggle_ver import SwinRegression
+
 
 
 torch.set_float32_matmul_precision('medium')  
 
 # 定義 Lightning 模組
 class SeaLionCountingModel(pl.LightningModule):
-    def __init__(self, num_classes=5, learning_rate=0.0001, batch_size=8):
+    def __init__(self, num_classes=5, learning_rate=0.0001, batch_size=8, alpha=None, gamma=1.0):
         super().__init__()
         self.save_hyperparameters()
         self.model = SwinRegression(num_classes)
-        self.criterion = nn.MSELoss()
+        self.criterion = FocalRMSELoss(alpha=alpha, gamma=gamma, squared=False)
         self.train_rmse = MeanSquaredError(squared=False)
         self.val_rmse = MeanSquaredError(squared=False)
         # 用於累計訓練集計數
@@ -31,7 +34,7 @@ class SeaLionCountingModel(pl.LightningModule):
         # 用於累計驗證集計數
         self.val_ground_truths = []
         self.val_predictions = []
-        
+
     def forward(self, x):
         return self.model(x)
     
@@ -90,6 +93,11 @@ class SeaLionCountingModel(pl.LightningModule):
             max_epochs=self.trainer.max_epochs,
             warmup_start_lr=0.0,
         )
+        # scheduler = torch.optim.lr_scheduler.StepLR(
+        #     optimizer,
+        #     step_size=1,  
+        #     gamma=0.9 
+        # )
         return {
             "optimizer": optimizer,
             "lr_scheduler": {
@@ -112,8 +120,8 @@ class SeaLionDataModule(pl.LightningDataModule):
         
         self.transform = transforms.Compose([
             transforms.ToPILImage(),
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomVerticalFlip(),
+            # transforms.RandomHorizontalFlip(),
+            # transforms.RandomVerticalFlip(),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -145,14 +153,28 @@ if __name__ == "__main__":
     parser.add_argument("--train_dir", type=str, default="Train", help="Path to train directory")
     parser.add_argument("--dotted_dir", type=str, default="TrainDotted", help="Path to dotted directory")
     parser.add_argument("--save_model", type=str, default="output", help="Path to save the trained model")
-    parser.add_argument("--batch_size", type=int, default=16, help="Batch size for training")
+    parser.add_argument("--batch_size", type=int, default=8, help="Batch size for training")
     parser.add_argument("--num_workers", type=int, default=0, help="Number of workers for data loading")
     parser.add_argument("--patch_size", type=int, default=224, help="Size of the patches to extract from images")
     parser.add_argument("--scale_factor", type=float, default=1, help="Scale factor for image patches")
+    parser.add_argument("--gamma", type=float, default=3.0, help="Gamma value for Focal Loss")
 
-    parser.add_argument("--lr", type=float, default=1e-5, help="Learning rate")
+    parser.add_argument("--lr", type=float, default=1e-4, help="Learning rate")
     parser.add_argument("--epochs", type=int, default=100, help="Number of epochs")
     args = parser.parse_args()
+    
+    # 計算 alpha 權重
+    print("Calculating class weights...")
+    csv_file = os.path.join(args.train_dir, "train.csv")
+    if not os.path.exists(csv_file):
+        raise FileNotFoundError(f"{csv_file} not found.")
+    train_df = pd.read_csv(csv_file)
+    categories = ['adult_males', 'subadult_males', 'adult_females', 'juveniles', 'pups']
+    freq = train_df[categories].mean().values
+    alpha = 1 / freq
+    alpha = alpha / alpha.sum()  # 歸一化
+    alpha = torch.tensor(alpha, dtype=torch.float32)
+    print(f"Class weights (alpha): {alpha.numpy()}")
 
     # 準備數據
     print("Preparing dataset...")
@@ -162,8 +184,7 @@ if __name__ == "__main__":
     
     print("Initializing model...")
     # 初始化模型
-    model = SeaLionCountingModel(num_classes=5, learning_rate=args.lr, batch_size=args.batch_size)
-
+    model = SeaLionCountingModel(num_classes=5, learning_rate=args.lr, batch_size=args.batch_size, alpha=alpha, gamma=args.gamma)
     print("Setting up training...")
     # 設置 Logger
     logger = TensorBoardLogger("lightning_logs", name="sea_lion_counting")

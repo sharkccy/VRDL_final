@@ -61,21 +61,25 @@ class SeaLionPatchDataset:
                         y, x, s = blob
                         if i <= y < i + self.patch_size and j <= x < j + self.patch_size:
                             b, g, r = img1_scaled[int(y)][int(x)]
-                            if r > 225 and b < 25 and g < 25:
+                            if r > 225 and b < 25 and g < 25:   # RED
                                 counts[0] += 1
-                            elif r > 225 and b > 225 and g < 25:
+                            elif r > 225 and b > 225 and g < 25:    # MAGENTA
                                 counts[1] += 1
-                            elif r < 75 and b < 50 and 150 < g < 200:
+                            elif r < 75 and b < 50 and 150 < g < 200: # GREEN
                                 counts[4] += 1
-                            elif r < 75 and 150 < b < 200 and g < 75:
+                            elif r < 75 and 150 < b < 200 and g < 75: # BLUE
                                 counts[3] += 1
-                            elif 60 < r < 120 and b < 50 and g < 75:
+                            elif 60 < r < 120 and b < 50 and g < 75: #brown
                                 counts[2] += 1
-                    if np.sum(counts) < 3:
+                    if np.sum(counts) == 0:
                         np.random.seed(int(time.time()) % 1000)  # Set seed for reproducibility
-                        if np.random.rand() < 0.8:
-                            print(f"Skipping {filename} at patch ({i}, {j}): no counts found")
-                            continue
+                        # if np.random.rand() < 0.95:
+                            # print(f"Skipping {filename} at patch ({i}, {j}): no counts found")
+                            # continue
+                        continue
+                    # elif (counts[2] + counts[3]) - (counts[0] + counts[1]) > 4:
+                    #     # print(f"Skipping {filename} at patch ({i}, {j}): counts too imbalanced")
+                    #     continue
                     print(f"Processing {filename} at patch ({i}, {j}): counts = {counts}")
                     self.patches.append((train_patch, i, j))
                     self.labels.append(counts)

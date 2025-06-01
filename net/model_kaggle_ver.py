@@ -11,9 +11,16 @@ class SwinRegression(nn.Module):
             pretrained=True,
             features_only=True
         )
-        for param in self.swin.parameters():
-            param.requires_grad = False
-            
+        #print layer in self.swin
+        # print("Swin-Tiny layers:")
+        # for name, layer in self.swin.named_children():
+        #     print(f"  {name}: {layer.__class__.__name__}")
+        # for name, param in self.swin.named_parameters():  # Fixed: use named_parameters()
+        #     if 'layers_2' in name or 'layers_3' in name:
+        #         param.requires_grad = True
+        #     else:
+        #         param.requires_grad = False
+
         # 全局平均池化層，將 (batch_size, C, H, W) 轉為 (batch_size, C, 1, 1)
         self.pool = nn.AdaptiveAvgPool2d(1)
         # 回歸層，輸入維度為 768 (Swin-Tiny 最後一階段的通道數)
