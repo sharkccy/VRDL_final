@@ -28,6 +28,7 @@ We tried to use 4 kinds of ways to solve this problem:
 
 
 4. Pure YOLO detection
+
 ![architecture](images/YOLO.png)
 
 
