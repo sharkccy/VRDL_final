@@ -9,7 +9,7 @@
 ## Project Overview
 In this project, we aim to achieve better performance in the kaggle competition
 
-link: https://www.kaggle.com/competitions/noaa-fisheries-steller-sea-lion-population-count/discussion/35422
+link: https://www.kaggle.com/competitions/noaa-fisheries-steller-sea-lion-population-count
 
 This is a counting task, we need to predict the number of sea lions in the image.
 
